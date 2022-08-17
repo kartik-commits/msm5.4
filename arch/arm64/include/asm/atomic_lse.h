@@ -11,7 +11,7 @@
 #define __ASM_ATOMIC_LSE_H
 
 #define ATOMIC_OP(op, asm_op)						\
-static inline void __lse_atomic_##op(int i, atomic_t *v)			\
+static __always_inline void __lse_atomic_##op(int i, atomic_t *v)			\
 {									\
 	asm volatile(							\
 	__LSE_PREAMBLE							\
@@ -28,7 +28,7 @@ ATOMIC_OP(add, stadd)
 #undef ATOMIC_OP
 
 #define ATOMIC_FETCH_OP(name, mb, op, asm_op, cl...)			\
-static inline int __lse_atomic_fetch_##op##name(int i, atomic_t *v)	\
+static __always_inline int __lse_atomic_fetch_##op##name(int i, atomic_t *v)	\
 {									\
 	asm volatile(							\
 	__LSE_PREAMBLE							\
@@ -55,7 +55,7 @@ ATOMIC_FETCH_OPS(add, ldadd)
 #undef ATOMIC_FETCH_OPS
 
 #define ATOMIC_OP_ADD_RETURN(name, mb, cl...)				\
-static inline int __lse_atomic_add_return##name(int i, atomic_t *v)	\
+static __always_inline int __lse_atomic_add_return##name(int i, atomic_t *v)	\
 {									\
 	u32 tmp;							\
 									\
@@ -77,7 +77,7 @@ ATOMIC_OP_ADD_RETURN(        , al, "memory")
 
 #undef ATOMIC_OP_ADD_RETURN
 
-static inline void __lse_atomic_and(int i, atomic_t *v)
+static __always_inline void __lse_atomic_and(int i, atomic_t *v)
 {
 	asm volatile(
 	__LSE_PREAMBLE
@@ -88,7 +88,7 @@ static inline void __lse_atomic_and(int i, atomic_t *v)
 }
 
 #define ATOMIC_FETCH_OP_AND(name, mb, cl...)				\
-static inline int __lse_atomic_fetch_and##name(int i, atomic_t *v)	\
+static __always_inline int __lse_atomic_fetch_and##name(int i, atomic_t *v)	\
 {									\
 	asm volatile(							\
 	__LSE_PREAMBLE							\
@@ -108,7 +108,7 @@ ATOMIC_FETCH_OP_AND(        , al, "memory")
 
 #undef ATOMIC_FETCH_OP_AND
 
-static inline void __lse_atomic_sub(int i, atomic_t *v)
+static __always_inline void __lse_atomic_sub(int i, atomic_t *v)
 {
 	asm volatile(
 	__LSE_PREAMBLE
@@ -119,7 +119,7 @@ static inline void __lse_atomic_sub(int i, atomic_t *v)
 }
 
 #define ATOMIC_OP_SUB_RETURN(name, mb, cl...)				\
-static inline int __lse_atomic_sub_return##name(int i, atomic_t *v)	\
+static __always_inline int __lse_atomic_sub_return##name(int i, atomic_t *v)	\
 {									\
 	u32 tmp;							\
 									\
@@ -143,7 +143,7 @@ ATOMIC_OP_SUB_RETURN(        , al, "memory")
 #undef ATOMIC_OP_SUB_RETURN
 
 #define ATOMIC_FETCH_OP_SUB(name, mb, cl...)				\
-static inline int __lse_atomic_fetch_sub##name(int i, atomic_t *v)	\
+static __always_inline int __lse_atomic_fetch_sub##name(int i, atomic_t *v)	\
 {									\
 	asm volatile(							\
 	__LSE_PREAMBLE							\
@@ -164,7 +164,7 @@ ATOMIC_FETCH_OP_SUB(        , al, "memory")
 #undef ATOMIC_FETCH_OP_SUB
 
 #define ATOMIC64_OP(op, asm_op)						\
-static inline void __lse_atomic64_##op(s64 i, atomic64_t *v)		\
+static __always_inline void __lse_atomic64_##op(s64 i, atomic64_t *v)		\
 {									\
 	asm volatile(							\
 	__LSE_PREAMBLE							\
@@ -181,7 +181,7 @@ ATOMIC64_OP(add, stadd)
 #undef ATOMIC64_OP
 
 #define ATOMIC64_FETCH_OP(name, mb, op, asm_op, cl...)			\
-static inline long __lse_atomic64_fetch_##op##name(s64 i, atomic64_t *v)\
+static __always_inline long __lse_atomic64_fetch_##op##name(s64 i, atomic64_t *v)\
 {									\
 	asm volatile(							\
 	__LSE_PREAMBLE							\
@@ -208,7 +208,7 @@ ATOMIC64_FETCH_OPS(add, ldadd)
 #undef ATOMIC64_FETCH_OPS
 
 #define ATOMIC64_OP_ADD_RETURN(name, mb, cl...)				\
-static inline long __lse_atomic64_add_return##name(s64 i, atomic64_t *v)\
+static __always_inline long __lse_atomic64_add_return##name(s64 i, atomic64_t *v)\
 {									\
 	unsigned long tmp;						\
 									\
@@ -230,7 +230,7 @@ ATOMIC64_OP_ADD_RETURN(        , al, "memory")
 
 #undef ATOMIC64_OP_ADD_RETURN
 
-static inline void __lse_atomic64_and(s64 i, atomic64_t *v)
+static __always_inline void __lse_atomic64_and(s64 i, atomic64_t *v)
 {
 	asm volatile(
 	__LSE_PREAMBLE
@@ -241,7 +241,7 @@ static inline void __lse_atomic64_and(s64 i, atomic64_t *v)
 }
 
 #define ATOMIC64_FETCH_OP_AND(name, mb, cl...)				\
-static inline long __lse_atomic64_fetch_and##name(s64 i, atomic64_t *v)	\
+static __always_inline long __lse_atomic64_fetch_and##name(s64 i, atomic64_t *v)	\
 {									\
 	asm volatile(							\
 	__LSE_PREAMBLE							\
@@ -261,7 +261,7 @@ ATOMIC64_FETCH_OP_AND(        , al, "memory")
 
 #undef ATOMIC64_FETCH_OP_AND
 
-static inline void __lse_atomic64_sub(s64 i, atomic64_t *v)
+static __always_inline void __lse_atomic64_sub(s64 i, atomic64_t *v)
 {
 	asm volatile(
 	__LSE_PREAMBLE
@@ -272,7 +272,7 @@ static inline void __lse_atomic64_sub(s64 i, atomic64_t *v)
 }
 
 #define ATOMIC64_OP_SUB_RETURN(name, mb, cl...)				\
-static inline long __lse_atomic64_sub_return##name(s64 i, atomic64_t *v)	\
+static __always_inline long __lse_atomic64_sub_return##name(s64 i, atomic64_t *v)	\
 {									\
 	unsigned long tmp;						\
 									\
@@ -296,7 +296,7 @@ ATOMIC64_OP_SUB_RETURN(        , al, "memory")
 #undef ATOMIC64_OP_SUB_RETURN
 
 #define ATOMIC64_FETCH_OP_SUB(name, mb, cl...)				\
-static inline long __lse_atomic64_fetch_sub##name(s64 i, atomic64_t *v)	\
+static __always_inline long __lse_atomic64_fetch_sub##name(s64 i, atomic64_t *v)	\
 {									\
 	asm volatile(							\
 	__LSE_PREAMBLE							\
@@ -316,7 +316,7 @@ ATOMIC64_FETCH_OP_SUB(        , al, "memory")
 
 #undef ATOMIC64_FETCH_OP_SUB
 
-static inline s64 __lse_atomic64_dec_if_positive(atomic64_t *v)
+static __always_inline s64 __lse_atomic64_dec_if_positive(atomic64_t *v)
 {
 	unsigned long tmp;
 
