@@ -1,6 +1,9 @@
 # SPDX-License-Identifier: GPL-2.0-only
 TECHPACK?=y
 
+export KERNEL_ROOT=$(srctree)
+export KERNEL_SRC=$(srctree)
+
 techpack-dirs := $(shell find $(srctree)/techpack -maxdepth 1 -mindepth 1 -type d -not -name ".*")
 techpack-dirs := $(shell find $(srctree)/techpack -maxdepth 1 -mindepth 1 -type d -not -name ".*" -not -name "camera-venus" -not -name "camera-odin" -not -name "camera-haydn" -not -name "camera-qcom" -not -name "camera-lisa" -not -name "camera-vili")
 techpack-dirs += $(shell find $(srctree)/techpack -maxdepth 1 -mindepth 1 -type l -name camera)
