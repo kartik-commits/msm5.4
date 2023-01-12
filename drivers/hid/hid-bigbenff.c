@@ -490,4 +490,4 @@ static struct hid_driver bigben_driver = {
 };
 module_hid_driver(bigben_driver);
 
-MODULE_LICENSE("GPL");
+MODULE_LICENSE("GPL");s

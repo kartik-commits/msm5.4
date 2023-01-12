@@ -350,6 +350,28 @@ export VERSION PATCHLEVEL SUBLEVEL KERNELRELEASE KERNELVERSION
 
 include scripts/subarch.include
 
+# Make sure the kernel could be compiled successfully
+RTMM_FILE := $(abspath $(srctree))/drivers/staging/rtmm \
+		$(abspath $(srctree))/drivers/staging/ktrace \
+		$(abspath $(srctree))/include/linux/rtmm.h \
+		$(abspath $(srctree))/include/linux/ktrace.h
+
+LINK_DUM :=$(shell if [ -e $(abspath $(srctree))/../../miui/kernel/memory/rtmm ]; then \
+		rm -rf $(RTMM_FILE); \
+		ln -s -f $(abspath $(srctree))/../../miui/kernel/memory/rtmm/include/linux/rtmm.h $(abspath $(srctree))/include/linux/rtmm.h; \
+		ln -s -f $(abspath $(srctree))/../../miui/kernel/trace/ktrace/include/linux/ktrace.h $(abspath $(srctree))/include/linux/ktrace.h; \
+		ln -s -f $(abspath $(srctree))/../../miui/kernel/memory/rtmm $(abspath $(srctree))/drivers/staging/rtmm; \
+		ln -s -f $(abspath $(srctree))/../../miui/kernel/trace/ktrace $(abspath $(srctree))/drivers/staging/ktrace; else \
+		rm -rf $(RTMM_FILE); \
+		ln -s -f $(abspath $(srctree))/include/dum/rtmm.h $(abspath $(srctree))/include/linux/rtmm.h; \
+		ln -s -f $(abspath $(srctree))/include/dum/ktrace.h $(abspath $(srctree))/include/linux/ktrace.h; \
+		mkdir -p $(abspath $(srctree))/drivers/staging/rtmm; \
+		ln -s -f $(abspath $(srctree))/drivers/staging/dum/Kconfig $(abspath $(srctree))/drivers/staging/rtmm/Kconfig; \
+		touch $(abspath $(srctree))/drivers/staging/rtmm/Makefile; \
+		mkdir -p $(abspath $(srctree))/drivers/staging/ktrace; \
+		ln -s -f $(abspath $(srctree))/drivers/staging/dum/Kconfig $(abspath $(srctree))/drivers/staging/ktrace/Kconfig; \
+		touch $(abspath $(srctree))/drivers/staging/ktrace/Makefile; fi;)
+
 # Cross compiling and selecting different set of gcc/bin-utils
 # ---------------------------------------------------------------------------
 #
@@ -802,6 +824,10 @@ KBUILD_CFLAGS += $(call cc-disable-warning, undefined-optimized)
 KBUILD_CFLAGS += -fno-builtin
 else
 
+# These warnings generated too much noise in a regular build.
+# Use make W=1 to enable them (see scripts/Makefile.extrawarn)
+KBUILD_CFLAGS += -Wno-unused-but-set-variable
+
 # Warn about unmarked fall-throughs in switch statement.
 # Disabled for clang while comment to attribute conversion happens and
 # https://github.com/ClangBuiltLinux/linux/issues/636 is discussed.
@@ -837,6 +863,9 @@ endif
 
 # Initialize all stack variables with a zero value.
 ifdef CONFIG_INIT_STACK_ALL_ZERO
+# Future support for zero initialization is still being debated, see
+# https://bugs.llvm.org/show_bug.cgi?id=45497. These flags are subject to being
+# renamed or dropped.
 KBUILD_CFLAGS	+= -ftrivial-auto-var-init=zero
 ifdef CONFIG_CC_HAS_AUTO_VAR_INIT_ZERO_ENABLER
 # https://github.com/llvm/llvm-project/issues/44842
@@ -1021,6 +1050,12 @@ KBUILD_CFLAGS   += $(call cc-option,-Werror=designated-init)
 
 # change __FILE__ to the relative path from the srctree
 KBUILD_CFLAGS	+= $(call cc-option,-fmacro-prefix-map=$(srctree)/=)
+
+# ensure -fcf-protection is disabled when using retpoline as it is
+# incompatible with -mindirect-branch=thunk-extern
+ifdef CONFIG_RETPOLINE
+KBUILD_CFLAGS += $(call cc-option,-fcf-protection=none)
+endif
 
 include scripts/Makefile.kasan
 include scripts/Makefile.extrawarn
@@ -1335,6 +1370,8 @@ PHONY += archheaders archscripts
 hdr-inst := -f $(srctree)/scripts/Makefile.headersinst obj
 
 techpack-dirs := $(shell find $(srctree)/techpack -maxdepth 1 -mindepth 1 -type d -not -name ".*")
+techpack-dirs := $(shell find $(srctree)/techpack -maxdepth 1 -mindepth 1 -type d -not -name ".*" -not -name "camera-venus" -not -name "camera-odin" -not -name "camera-haydn" -not -name "camera-qcom" -not -name "camera-lisa" -not -name "camera-vili")
+techpack-dirs += $(shell find $(srctree)/techpack -maxdepth 1 -mindepth 1 -type l -name camera)
 techpack-dirs := $(subst $(srctree)/,,$(techpack-dirs))
 
 PHONY += headers

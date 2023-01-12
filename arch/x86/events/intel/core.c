@@ -2387,11 +2387,9 @@ static int handle_pmi_common(struct pt_regs *regs, u64 status)
 	 */
 	if (__test_and_clear_bit(55, (unsigned long *)&status)) {
 		handled++;
-
-		guest_cbs = perf_get_guest_cbs();
-		if (unlikely(guest_cbs && guest_cbs->is_in_guest() &&
-			     guest_cbs->handle_intel_pt_intr))
-			guest_cbs->handle_intel_pt_intr();
+		if (unlikely(perf_guest_cbs && perf_guest_cbs->is_in_guest() &&
+			perf_guest_cbs->handle_intel_pt_intr))
+			perf_guest_cbs->handle_intel_pt_intr();
 		else
 			intel_pt_interrupt();
 	}

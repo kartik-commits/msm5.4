@@ -113,9 +113,17 @@ void __noreturn machine_real_restart(unsigned int type)
 	spin_unlock(&rtc_lock);
 
 	/*
-	 * Switch to the trampoline page table.
+	 * Switch back to the initial page table.
 	 */
-	load_trampoline_pgtable();
+#ifdef CONFIG_X86_32
+	load_cr3(initial_page_table);
+#else
+	write_cr3(real_mode_header->trampoline_pgd);
+
+	/* Exiting long mode will fail if CR4.PCIDE is set. */
+	if (boot_cpu_has(X86_FEATURE_PCID))
+		cr4_clear_bits(X86_CR4_PCIDE);
+#endif
 
 	/* Jump to the identity-mapped low memory code */
 #ifdef CONFIG_X86_32
@@ -528,29 +536,33 @@ static inline void kb_wait(void)
 	}
 }
 
-static inline void nmi_shootdown_cpus_on_restart(void);
+static void vmxoff_nmi(int cpu, struct pt_regs *regs)
+{
+	cpu_emergency_vmxoff();
+}
 
-static void emergency_reboot_disable_virtualization(void)
+/* Use NMIs as IPIs to tell all CPUs to disable virtualization */
+static void emergency_vmx_disable_all(void)
 {
 	/* Just make sure we won't change CPUs while doing this */
 	local_irq_disable();
 
 	/*
-	 * Disable virtualization on all CPUs before rebooting to avoid hanging
-	 * the system, as VMX and SVM block INIT when running in the host.
+	 * Disable VMX on all CPUs before rebooting, otherwise we risk hanging
+	 * the machine, because the CPU blocks INIT when it's in VMX root.
 	 *
 	 * We can't take any locks and we may be on an inconsistent state, so
-	 * use NMIs as IPIs to tell the other CPUs to disable VMX/SVM and halt.
+	 * use NMIs as IPIs to tell the other CPUs to exit VMX root and halt.
 	 *
-	 * Do the NMI shootdown even if virtualization is off on _this_ CPU, as
-	 * other CPUs may have virtualization enabled.
+	 * Do the NMI shootdown even if VMX if off on _this_ CPU, as that
+	 * doesn't prevent a different CPU from being in VMX root operation.
 	 */
-	if (cpu_has_vmx() || cpu_has_svm(NULL)) {
-		/* Safely force _this_ CPU out of VMX/SVM operation. */
-		cpu_emergency_disable_virtualization();
+	if (cpu_has_vmx()) {
+		/* Safely force _this_ CPU out of VMX root operation. */
+		__cpu_emergency_vmxoff();
 
-		/* Disable VMX/SVM and halt on other CPUs. */
-		nmi_shootdown_cpus_on_restart();
+		/* Halt and exit VMX root operation on the other CPUs. */
+		nmi_shootdown_cpus(vmxoff_nmi);
 
 	}
 }
@@ -587,7 +599,7 @@ static void native_machine_emergency_restart(void)
 	unsigned short mode;
 
 	if (reboot_emergency)
-		emergency_reboot_disable_virtualization();
+		emergency_vmx_disable_all();
 
 	tboot_shutdown(TB_SHUTDOWN_REBOOT);
 
@@ -843,17 +855,12 @@ static int crash_nmi_callback(unsigned int val, struct pt_regs *regs)
 	return NMI_HANDLED;
 }
 
-/**
- * nmi_shootdown_cpus - Stop other CPUs via NMI
- * @callback:	Optional callback to be invoked from the NMI handler
+/*
+ * Halt all other CPUs, calling the specified function on each of them
  *
- * The NMI handler on the remote CPUs invokes @callback, if not
- * NULL, first and then disables virtualization to ensure that
- * INIT is recognized during reboot.
- *
- * nmi_shootdown_cpus() can only be invoked once. After the first
- * invocation all other CPUs are stuck in crash_nmi_callback() and
- * cannot respond to a second NMI.
+ * This function can be used to halt all other CPUs on crash
+ * or emergency reboot time. The function passed as parameter
+ * will be called inside a NMI handler on all CPUs.
  */
 void nmi_shootdown_cpus(nmi_shootdown_cb callback)
 {

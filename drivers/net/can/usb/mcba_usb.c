@@ -33,6 +33,10 @@
 #define MCBA_USB_RX_BUFF_SIZE 64
 #define MCBA_USB_TX_BUFF_SIZE (sizeof(struct mcba_usb_msg))
 
+/* MCBA endpoint numbers */
+#define MCBA_USB_EP_IN 1
+#define MCBA_USB_EP_OUT 1
+
 /* Microchip command id */
 #define MBCA_CMD_RECEIVE_MESSAGE 0xE3
 #define MBCA_CMD_I_AM_ALIVE_FROM_CAN 0xF5
@@ -274,8 +278,10 @@ static netdev_tx_t mcba_usb_xmit(struct mcba_priv *priv,
 
 	memcpy(buf, usb_msg, MCBA_USB_TX_BUFF_SIZE);
 
-	usb_fill_bulk_urb(urb, priv->udev, priv->tx_pipe, buf, MCBA_USB_TX_BUFF_SIZE,
-			  mcba_usb_write_bulk_callback, ctx);
+	usb_fill_bulk_urb(urb, priv->udev,
+			  usb_sndbulkpipe(priv->udev, MCBA_USB_EP_OUT), buf,
+			  MCBA_USB_TX_BUFF_SIZE, mcba_usb_write_bulk_callback,
+			  ctx);
 
 	urb->transfer_flags |= URB_NO_TRANSFER_DMA_MAP;
 	usb_anchor_urb(urb, &priv->tx_submitted);
@@ -368,6 +374,7 @@ static netdev_tx_t mcba_usb_start_xmit(struct sk_buff *skb,
 xmit_failed:
 	can_free_echo_skb(priv->netdev, ctx->ndx);
 	mcba_usb_free_ctx(ctx);
+	dev_kfree_skb(skb);
 	stats->tx_dropped++;
 
 	return NETDEV_TX_OK;

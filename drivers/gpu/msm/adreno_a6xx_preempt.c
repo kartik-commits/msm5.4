@@ -553,7 +553,8 @@ unsigned int a6xx_preemption_pre_ibsubmit(
 
 		/* Add a KMD post amble to clear the perf counters during preemption */
 		if (!adreno_dev->perfcounter) {
-			u64 kmd_postamble_addr = SCRATCH_POSTAMBLE_ADDR(KGSL_DEVICE(adreno_dev));
+			u64 kmd_postamble_addr =
+					PREEMPT_SCRATCH_ADDR(adreno_dev, KMD_POSTAMBLE_IDX);
 
 			*cmds++ = cp_type7_packet(CP_SET_AMBLE, 3);
 			*cmds++ = lower_32_bits(kmd_postamble_addr);

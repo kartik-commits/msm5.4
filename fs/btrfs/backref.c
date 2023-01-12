@@ -835,10 +835,15 @@ static int add_delayed_refs(const struct btrfs_fs_info *fs_info,
 			    struct preftrees *preftrees, struct share_check *sc)
 {
 	struct btrfs_delayed_ref_node *node;
+	struct btrfs_delayed_extent_op *extent_op = head->extent_op;
 	struct btrfs_key key;
+	struct btrfs_key tmp_op_key;
 	struct rb_node *n;
 	int count;
 	int ret = 0;
+
+	if (extent_op && extent_op->update_key)
+		btrfs_disk_key_to_cpu(&tmp_op_key, &extent_op->key);
 
 	spin_lock(&head->lock);
 	for (n = rb_first_cached(&head->ref_tree); n; n = rb_next(n)) {
@@ -1442,6 +1447,24 @@ out:
 	if (ret < 0)
 		free_inode_elem_list(eie);
 	return ret;
+}
+
+static void free_leaf_list(struct ulist *blocks)
+{
+	struct ulist_node *node = NULL;
+	struct extent_inode_elem *eie;
+	struct ulist_iterator uiter;
+
+	ULIST_ITER_INIT(&uiter);
+	while ((node = ulist_next(blocks, &uiter))) {
+		if (!node->aux)
+			continue;
+		eie = unode_aux_to_inode_list(node);
+		free_inode_elem_list(eie);
+		node->aux = 0;
+	}
+
+	ulist_free(blocks);
 }
 
 /*

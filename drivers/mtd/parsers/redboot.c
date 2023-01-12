@@ -49,7 +49,7 @@ static void parse_redboot_of(struct mtd_info *master)
 	u32 dirblock;
 	int ret;
 
-	np = mtd_get_of_node(master);
+	np = mtd_get_of_node(master);a
 	if (!np)
 		return;
 

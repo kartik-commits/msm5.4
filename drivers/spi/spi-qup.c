@@ -1030,8 +1030,23 @@ static int spi_qup_probe(struct platform_device *pdev)
 		return -ENXIO;
 	}
 
+	ret = clk_prepare_enable(cclk);
+	if (ret) {
+		dev_err(dev, "cannot enable core clock\n");
+		return ret;
+	}
+
+	ret = clk_prepare_enable(iclk);
+	if (ret) {
+		clk_disable_unprepare(cclk);
+		dev_err(dev, "cannot enable iface clock\n");
+		return ret;
+	}
+
 	master = spi_alloc_master(dev, sizeof(struct spi_qup));
 	if (!master) {
+		clk_disable_unprepare(cclk);
+		clk_disable_unprepare(iclk);
 		dev_err(dev, "cannot allocate master\n");
 		return -ENOMEM;
 	}

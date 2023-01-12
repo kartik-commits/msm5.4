@@ -2162,6 +2162,18 @@ static int reset_all_ctrls(struct rdt_resource *r)
 	return 0;
 }
 
+static bool is_closid_match(struct task_struct *t, struct rdtgroup *r)
+{
+	return (rdt_alloc_capable &&
+		(r->type == RDTCTRL_GROUP) && (t->closid == r->closid));
+}
+
+static bool is_rmid_match(struct task_struct *t, struct rdtgroup *r)
+{
+	return (rdt_mon_capable &&
+		(r->type == RDTMON_GROUP) && (t->rmid == r->mon.rmid));
+}
+
 /*
  * Move tasks from one to the other group. If @from is NULL, then all tasks
  * in the systems are moved unconditionally (used for teardown).
@@ -2182,6 +2194,7 @@ static void rdt_move_group_tasks(struct rdtgroup *from, struct rdtgroup *to,
 			WRITE_ONCE(t->closid, to->closid);
 			WRITE_ONCE(t->rmid, to->mon.rmid);
 
+#ifdef CONFIG_SMP
 			/*
 			 * Order the closid/rmid stores above before the loads
 			 * in task_curr(). This pairs with the full barrier
@@ -2199,6 +2212,7 @@ static void rdt_move_group_tasks(struct rdtgroup *from, struct rdtgroup *to,
 			 */
 			if (IS_ENABLED(CONFIG_SMP) && mask && task_curr(t))
 				cpumask_set_cpu(task_cpu(t), mask);
+#endif
 		}
 	}
 	read_unlock(&tasklist_lock);

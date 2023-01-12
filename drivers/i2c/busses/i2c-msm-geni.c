@@ -176,7 +176,7 @@ struct geni_i2c_clk_fld {
 
 static struct geni_i2c_clk_fld geni_i2c_clk_map[] = {
 	{KHz(100), 7, 10, 11, 26},
-	{KHz(400), 2,  7, 10, 24},
+	{KHz(400), 2,  5, 12, 24},
 	{KHz(1000), 1, 3,  9, 18},
 };
 
@@ -257,21 +257,17 @@ static int do_pending_cancel(struct geni_i2c_dev *gi2c)
 
 	geni_ios = geni_read_reg_nolog(gi2c->base, SE_GENI_IOS);
 	if ((geni_ios & 0x3) != 0x3) {
-		/* Try to restore IOS with FORCE_DEFAULT */
-		GENI_SE_ERR(gi2c->ipcl, true, gi2c->dev,
-			"%s: IOS:0x%x, bad state\n", __func__, geni_ios);
+ 		/* Try to restore IOS with FORCE_DEFAULT */
+		GENI_SE_ERR(gi2c->ipcl, true, gi2c->dev, "%s: IOS:0x%x, bad state\n", __func__, geni_ios);
 
 		geni_write_reg(FORCE_DEFAULT,
-			gi2c->base, GENI_FORCE_DEFAULT_REG);
+		gi2c->base, GENI_FORCE_DEFAULT_REG);
 		geni_ios = geni_read_reg_nolog(gi2c->base, SE_GENI_IOS);
 		if ((geni_ios & 0x3) != 0x3) {
-			GENI_SE_ERR(gi2c->ipcl, true, gi2c->dev,
-				"%s: IOS:0x%x, Fix from Slave side\n",
-				__func__, geni_ios);
-			return -EINVAL;
+		GENI_SE_ERR(gi2c->ipcl, true, gi2c->dev, "%s: IOS:0x%x, Fix from Slave side\n",__func__, geni_ios);
+		return -EINVAL;
 		}
-		GENI_SE_ERR(gi2c->ipcl, true, gi2c->dev,
-			"%s: IOS:0x%x restored properly\n", __func__, geni_ios);
+		GENI_SE_ERR(gi2c->ipcl, true, gi2c->dev, "%s: IOS:0x%x restored properly\n", __func__, geni_ios);
 	}
 
 	if (gi2c->se_mode == GSI_ONLY) {
@@ -1090,7 +1086,7 @@ static int geni_i2c_xfer(struct i2c_adapter *adap,
 	}
 
 	GENI_SE_DBG(gi2c->ipcl, false, gi2c->dev,
-		    "n:%d addr:0x%x\n", num, msgs[0].addr);
+		"n:%d addr:0x%x\n", num, msgs[0].addr);
 
 	gi2c->dbg_num = num;
 	kfree(gi2c->dbg_buf_ptr);

@@ -773,6 +773,10 @@ static void aspeed_video_get_resolution(struct aspeed_video *video)
 			return;
 		}
 
+		/* Disable mode detect in order to re-trigger */
+		aspeed_video_update(video, VE_SEQ_CTRL,
+				    VE_SEQ_CTRL_TRIG_MODE_DET, 0);
+
 		aspeed_video_check_and_set_polarity(video);
 
 		aspeed_video_enable_mode_detect(video);
@@ -807,7 +811,8 @@ static void aspeed_video_get_resolution(struct aspeed_video *video)
 			VE_SRC_LR_EDGE_DET_RT_SHF;
 		video->frame_left = src_lr_edge & VE_SRC_LR_EDGE_DET_LEFT;
 		det->hfrontporch = video->frame_left;
-		det->hbackporch = htotal - video->frame_right;
+		det->hbackporch = (mds & VE_MODE_DETECT_H_PIXELS) -
+			video->frame_right;
 		det->hsync = sync & VE_SYNC_STATUS_HSYNC;
 		if (video->frame_left > video->frame_right)
 			continue;
@@ -1320,6 +1325,7 @@ static void aspeed_video_resolution_work(struct work_struct *work)
 	struct delayed_work *dwork = to_delayed_work(work);
 	struct aspeed_video *video = container_of(dwork, struct aspeed_video,
 						  res_work);
+	u32 input_status = video->v4l2_input_status;
 
 	aspeed_video_on(video);
 
@@ -1332,7 +1338,8 @@ static void aspeed_video_resolution_work(struct work_struct *work)
 	aspeed_video_get_resolution(video);
 
 	if (video->detected_timings.width != video->active_timings.width ||
-	    video->detected_timings.height != video->active_timings.height) {
+	    video->detected_timings.height != video->active_timings.height ||
+	    input_status != video->v4l2_input_status) {
 		static const struct v4l2_event ev = {
 			.type = V4L2_EVENT_SOURCE_CHANGE,
 			.u.src_change.changes = V4L2_EVENT_SRC_CH_RESOLUTION,
@@ -1716,7 +1723,8 @@ static int aspeed_video_remove(struct platform_device *pdev)
 
 	v4l2_device_unregister(v4l2_dev);
 
-	aspeed_video_free_buf(video, &video->jpeg);
+	dma_free_coherent(video->dev, VE_JPEG_HEADER_SIZE, video->jpeg.virt,
+			  video->jpeg.dma);
 
 	of_reserved_mem_device_release(dev);
 

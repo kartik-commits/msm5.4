@@ -8,6 +8,10 @@
  *	    Sebastian Andrzej Siewior <bigeasy@linutronix.de>
  */
 
+#ifdef CONFIG_FACTORY_BUILD
+#define DEBUG
+#endif
+
 #include <linux/kernel.h>
 #include <linux/delay.h>
 #include <linux/slab.h>
@@ -314,7 +318,7 @@ void dwc3_gadget_giveback(struct dwc3_ep *dep, struct dwc3_request *req,
 	spin_lock(&dwc->lock);
 }
 
-#define DWC_CMD_TIMEOUT 5000
+#define DWC_CMD_TIMEOUT 6000
 /**
  * dwc3_send_gadget_generic_command - issue a generic command for the controller
  * @dwc: pointer to the controller context
@@ -1003,6 +1007,7 @@ static struct usb_request *dwc3_gadget_ep_alloc_request(struct usb_ep *ep,
 	req->epnum	= dep->number;
 	req->dep	= dep;
 	req->status	= DWC3_REQUEST_STATUS_UNKNOWN;
+	INIT_LIST_HEAD(&req->list);
 
 	trace_dwc3_alloc_request(req);
 
@@ -1826,10 +1831,21 @@ static int dwc3_gadget_ep_dequeue(struct usb_ep *ep,
 	unsigned long			flags;
 	int				ret = 0;
 
+	if (!ep || !request){
+		dev_err(dwc->dev, "Unable to dequeue while no source\n");
+		return -EINVAL;
+	}
+
 	trace_dwc3_ep_dequeue(req);
 	dbg_ep_dequeue(dep->number, req);
 
 	spin_lock_irqsave(&dwc->lock, flags);
+
+	if (list_empty(&req->list)){
+		dev_err(dwc->dev, "No need to dequeue while in NULL req list\n");
+		spin_unlock_irqrestore(&dwc->lock, flags);
+		return ret;
+	}
 
 	list_for_each_entry(r, &dep->cancelled_list, list) {
 		if (r == req) {
@@ -1889,6 +1905,12 @@ int __dwc3_gadget_ep_set_halt(struct dwc3_ep *dep, int value, int protocol)
 	struct dwc3				*dwc = dep->dwc;
 	int					ret;
 
+#ifndef CONFIG_FACTORY_BUILD
+	if (dep->flags & DWC3_EP_STALL){
+		dev_dbg(dwc->dev, "Check the STALL\n");
+		return 0;
+	}
+#endif
 	if (!dep->endpoint.desc) {
 		dev_dbg(dwc->dev, "(%s)'s desc is NULL.\n", dep->name);
 		return -EINVAL;
@@ -1932,6 +1954,12 @@ int __dwc3_gadget_ep_set_halt(struct dwc3_ep *dep, int value, int protocol)
 		else
 			dep->flags |= DWC3_EP_STALL;
 	} else {
+#ifndef CONFIG_FACTORY_BUILD
+		if (!(dep->flags & DWC3_EP_STALL)){
+			dev_dbg(dwc->dev, "Do not care about the STALL\n");
+			return 0;
+		}
+#endif
 		/*
 		 * Don't issue CLEAR_STALL command to control endpoints. The
 		 * controller automatically clears the STALL when it receives
@@ -4278,7 +4306,30 @@ void dwc3_bh_work(struct work_struct *w)
 	dwc3_thread_interrupt(dwc->irq, dwc->ev_buf);
 	pm_runtime_put(dwc->dev);
 }
+#ifndef CONFIG_FACTORY_BUILD
+void dwc3_check_cmd_work(struct work_struct *w)
+{
+	struct dwc3 *dwc = container_of(w, struct dwc3, check_cmd_work);
+	unsigned int timeout = 200;
 
+	do{
+		msleep(5);
+	} while (--timeout && (dwc->gs_cmd_status == 1));
+
+	if(!timeout){
+		dwc3_notify_event(dwc, DWC3_USB_RESTART_EVENT, 0);
+	}else{
+		dev_dbg(dwc->dev,
+				"GET STATUS cmd done under: %dms\n",(200 - timeout)*5);
+	}
+
+}
+
+void dwc3_check_cmd(struct dwc3 *dwc){
+
+	schedule_work(&dwc->check_cmd_work);
+}
+#endif
 static irqreturn_t dwc3_thread_interrupt(int irq, void *_evt)
 {
 	struct dwc3_event_buffer *evt = _evt;

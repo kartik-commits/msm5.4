@@ -481,8 +481,8 @@ dw_mipi_dsi_get_lane_mbps(void *priv_data, const struct drm_display_mode *mode,
 	unsigned long best_freq = 0;
 	unsigned long fvco_min, fvco_max, fin, fout;
 	unsigned int min_prediv, max_prediv;
-	unsigned int _prediv, best_prediv;
-	unsigned long _fbdiv, best_fbdiv;
+	unsigned int _prediv, uninitialized_var(best_prediv);
+	unsigned long _fbdiv, uninitialized_var(best_fbdiv);
 	unsigned long min_delta = ULONG_MAX;
 
 	dsi->format = format;
@@ -627,6 +627,10 @@ static void dw_mipi_dsi_encoder_enable(struct drm_encoder *encoder)
 	if (mux < 0)
 		return;
 
+	pm_runtime_get_sync(dsi->dev);
+	if (dsi->slave)
+		pm_runtime_get_sync(dsi->slave->dev);
+
 	/*
 	 * For the RK3399, the clk of grf must be enabled before writing grf
 	 * register. And for RK3288 or other soc, this grf_clk must be NULL,
@@ -645,10 +649,20 @@ static void dw_mipi_dsi_encoder_enable(struct drm_encoder *encoder)
 	clk_disable_unprepare(dsi->grf_clk);
 }
 
+static void dw_mipi_dsi_encoder_disable(struct drm_encoder *encoder)
+{
+	struct dw_mipi_dsi_rockchip *dsi = to_dsi(encoder);
+
+	if (dsi->slave)
+		pm_runtime_put(dsi->slave->dev);
+	pm_runtime_put(dsi->dev);
+}
+
 static const struct drm_encoder_helper_funcs
 dw_mipi_dsi_encoder_helper_funcs = {
 	.atomic_check = dw_mipi_dsi_encoder_atomic_check,
 	.enable = dw_mipi_dsi_encoder_enable,
+	.disable = dw_mipi_dsi_encoder_disable,
 };
 
 static const struct drm_encoder_funcs dw_mipi_dsi_encoder_funcs = {
@@ -1023,10 +1037,14 @@ static int dw_mipi_dsi_rockchip_probe(struct platform_device *pdev)
 		if (ret != -EPROBE_DEFER)
 			DRM_DEV_ERROR(dev,
 				      "Failed to probe dw_mipi_dsi: %d\n", ret);
-		return ret;
+		goto err_clkdisable;
 	}
 
 	return 0;
+
+err_clkdisable:
+	clk_disable_unprepare(dsi->pllref_clk);
+	return ret;
 }
 
 static int dw_mipi_dsi_rockchip_remove(struct platform_device *pdev)

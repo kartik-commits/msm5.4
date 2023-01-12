@@ -730,6 +730,21 @@ static void blk_account_io_merge(struct request *req)
 		part_stat_unlock();
 	}
 }
+/*
+ * Two cases of handling DISCARD merge:
+ * If max_discard_segments > 1, the driver takes every bio
+ * as a range and send them to controller together. The ranges
+ * needn't to be contiguous.
+ * Otherwise, the bios/requests will be handled as same as
+ * others which should be contiguous.
+ */
+static inline bool blk_discard_mergable(struct request *req)
+{
+	if (req_op(req) == REQ_OP_DISCARD &&
+	    queue_max_discard_segments(req->q) > 1)
+		return true;
+	return false;
+}
 
 static enum elv_merge blk_try_req_merge(struct request *req,
 					struct request *next)
@@ -918,11 +933,32 @@ bool blk_rq_merge_ok(struct request *rq, struct bio *bio)
 
 enum elv_merge blk_try_merge(struct request *rq, struct bio *bio)
 {
+	enum elv_merge where;
+	#ifdef CONFIG_PERF_HUMANTASK
+	if (bio->human_task) {
+
+		if (blk_discard_mergable(rq))
+			where = ELEVATOR_DISCARD_MERGE;
+		else if (blk_rq_pos(rq) - bio_sectors(bio) == bio->bi_iter.bi_sector)
+			where = ELEVATOR_FRONT_MERGE;
+		else if (blk_rq_pos(rq) + blk_rq_sectors(rq) == bio->bi_iter.bi_sector)
+			where = ELEVATOR_BACK_MERGE;
+		else
+			where = ELEVATOR_NO_MERGE;
+		if (where && where != ELEVATOR_DISCARD_MERGE) {
+			rq->ioprio = 0 ;
+			bio->bi_ioprio = 0;
+		}
+		return where;
+	}
+	#endif
+
 	if (blk_discard_mergable(rq))
-		return ELEVATOR_DISCARD_MERGE;
+		where = ELEVATOR_DISCARD_MERGE;
 	else if (blk_rq_pos(rq) + blk_rq_sectors(rq) == bio->bi_iter.bi_sector)
-		return ELEVATOR_BACK_MERGE;
+		where = ELEVATOR_BACK_MERGE;
 	else if (blk_rq_pos(rq) - bio_sectors(bio) == bio->bi_iter.bi_sector)
-		return ELEVATOR_FRONT_MERGE;
-	return ELEVATOR_NO_MERGE;
+		where = ELEVATOR_FRONT_MERGE;
+	where = ELEVATOR_NO_MERGE;
+	return where;
 }

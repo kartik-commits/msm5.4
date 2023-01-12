@@ -1813,6 +1813,8 @@ int raid56_parity_write(struct btrfs_fs_info *fs_info, struct bio *bio,
 		btrfs_put_bbio(bbio);
 		return PTR_ERR(rbio);
 	}
+	bio_list_add(&rbio->bio_list, bio);
+	rbio->bio_list_bytes = bio->bi_iter.bi_size;
 	rbio->operation = BTRFS_RBIO_WRITE;
 	rbio_add_bio(rbio, bio);
 
@@ -2130,6 +2132,16 @@ static int __raid56_parity_recover(struct btrfs_raid_bio *rbio)
 		}
 
 		for (pagenr = 0; pagenr < rbio->stripe_npages; pagenr++) {
+			struct page *p;
+
+			/*
+			 * the rmw code may have already read this
+			 * page in
+			 */
+			p = rbio_stripe_page(rbio, stripe, pagenr);
+			if (PageUptodate(p))
+				continue;
+
 			ret = rbio_add_io_page(rbio, &bio_list,
 				       rbio_stripe_page(rbio, stripe, pagenr),
 				       stripe, pagenr, rbio->stripe_len);

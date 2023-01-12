@@ -4638,4 +4638,4 @@ int i40e_ndo_set_vf_trust(struct net_device *netdev, int vf_id, bool setting)
 out:
 	clear_bit(__I40E_VIRTCHNL_OP_PENDING, pf->state);
 	return ret;
-}
+}s

@@ -21,6 +21,9 @@
 #include <linux/pm_runtime.h>
 #include <linux/security.h>
 #include <linux/sort.h>
+#if IS_ENABLED(CONFIG_MIMISC_MC)
+#include <linux/memcontrol.h>
+#endif
 #include <soc/qcom/boot_stats.h>
 
 #include "kgsl_compat.h"
@@ -1037,6 +1040,11 @@ static void process_release_memory(struct kgsl_process_private *private)
 		if (!entry->pending_free) {
 			entry->pending_free = 1;
 			spin_unlock(&private->mem_lock);
+#if IS_ENABLED(CONFIG_MIMISC_MC)
+			if (likely(entry->memdesc.page_count))
+				memcg_misc_uncharge(&(entry->memdesc.memgroup),
+					entry->memdesc.page_count, MEMCG_GPU_TYPE);
+#endif
 			kgsl_mem_entry_put(entry);
 		} else {
 			spin_unlock(&private->mem_lock);
@@ -2216,6 +2224,12 @@ long gpumem_free_entry(struct kgsl_mem_entry *entry)
 	if (!kgsl_mem_entry_set_pend(entry))
 		return -EBUSY;
 
+#if IS_ENABLED(CONFIG_MIMISC_MC)
+	if (likely(entry->memdesc.page_count))
+		memcg_misc_uncharge(&(entry->memdesc.memgroup),
+				entry->memdesc.page_count, MEMCG_GPU_TYPE);
+#endif
+
 	trace_kgsl_mem_free(entry);
 	kgsl_memfree_add(pid_nr(entry->priv->pid),
 			entry->memdesc.pagetable ?
@@ -2234,6 +2248,12 @@ static void gpumem_free_func(struct kgsl_device *device,
 	struct kgsl_context *context = group->context;
 	struct kgsl_mem_entry *entry = priv;
 	unsigned int timestamp;
+
+#if IS_ENABLED(CONFIG_MIMISC_MC)
+	if (likely(entry->memdesc.page_count))
+		memcg_misc_uncharge(&(entry->memdesc.memgroup),
+				entry->memdesc.page_count, MEMCG_GPU_TYPE);
+#endif
 
 	kgsl_readtimestamp(device, context, KGSL_TIMESTAMP_RETIRED, &timestamp);
 
@@ -2338,6 +2358,12 @@ static long gpuobj_free_on_timestamp(struct kgsl_device_private *dev_priv,
 static bool gpuobj_free_fence_func(void *priv)
 {
 	struct kgsl_mem_entry *entry = priv;
+
+#if IS_ENABLED(CONFIG_MIMISC_MC)
+	if (likely(entry->memdesc.page_count))
+		memcg_misc_uncharge(&(entry->memdesc.memgroup),
+				entry->memdesc.page_count, MEMCG_GPU_TYPE);
+#endif
 
 	trace_kgsl_mem_free(entry);
 	kgsl_memfree_add(pid_nr(entry->priv->pid),
@@ -3033,6 +3059,8 @@ static int kgsl_setup_dma_buf(struct kgsl_device *device,
 		goto out;
 	}
 
+	dma_buf_unmap_attachment(attach, sg_table, DMA_BIDIRECTIONAL);
+
 	meta->table = sg_table;
 	entry->priv_data = meta;
 	entry->memdesc.sgt = sg_table;
@@ -3629,6 +3657,13 @@ struct kgsl_mem_entry *gpumem_alloc_entry(
 	trace_kgsl_mem_alloc(entry);
 
 	kgsl_mem_entry_commit_process(entry);
+
+#if IS_ENABLED(CONFIG_MIMISC_MC)
+	if (likely(entry->memdesc.page_count))
+		memcg_misc_charge(&(entry->memdesc.memgroup), 0,
+				entry->memdesc.page_count, MEMCG_GPU_TYPE);
+#endif
+
 	return entry;
 err:
 	kfree(entry);
@@ -4519,6 +4554,12 @@ int kgsl_device_platform_probe(struct kgsl_device *device)
 	device->pwrctrl.interrupt_num = status;
 	disable_irq(device->pwrctrl.interrupt_num);
 
+	rwlock_init(&device->context_lock);
+	spin_lock_init(&device->submit_lock);
+
+	idr_init(&device->timelines);
+	spin_lock_init(&device->timelines_lock);
+
 	device->events_wq = alloc_workqueue("kgsl-events",
 		WQ_UNBOUND | WQ_MEM_RECLAIM | WQ_SYSFS | WQ_HIGHPRI, 0);
 
@@ -4571,6 +4612,9 @@ void kgsl_device_platform_remove(struct kgsl_device *device)
 	}
 
 	kgsl_device_snapshot_close(device);
+
+	if (device->gpu_sysfs_kobj.state_initialized)
+		kobject_del(&device->gpu_sysfs_kobj);
 
 	idr_destroy(&device->context_idr);
 	idr_destroy(&device->timelines);

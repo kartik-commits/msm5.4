@@ -293,6 +293,7 @@ int npu_host_init(struct npu_device *npu_dev)
 	memset(host_ctx, 0, sizeof(*host_ctx));
 	init_completion(&host_ctx->misc_done);
 	init_completion(&host_ctx->fw_deinit_done);
+	init_completion(&host_ctx->property_done);
 	mutex_init(&host_ctx->lock);
 	atomic_set(&host_ctx->ipc_trans_id, 1);
 	host_ctx->npu_dev = npu_dev;
@@ -1289,6 +1290,7 @@ int32_t npu_host_set_fw_property(struct npu_device *npu_dev,
 	for (i = 0; i < num_of_params; i++)
 		prop_packet->prop_param[i] = property->prop_param[i];
 
+	reinit_completion(&host_ctx->property_done);
 	ret = npu_send_misc_cmd(npu_dev, IPC_QUEUE_APPS_EXEC,
 		prop_packet);
 
@@ -1359,6 +1361,7 @@ int32_t npu_host_get_fw_property(struct npu_device *npu_dev,
 	for (i = 0; i < num_of_params; i++)
 		prop_packet->prop_param[i] = property->prop_param[i];
 
+	reinit_completion(&host_ctx->property_done);
 	ret = npu_send_misc_cmd(npu_dev, IPC_QUEUE_APPS_EXEC,
 		prop_packet);
 	pr_debug("NPU_IPC_CMD_GET_PROPERTY sent status: %d\n", ret);
@@ -2020,6 +2023,7 @@ int32_t npu_host_loopback_test(struct npu_device *npu_dev)
 	loopback_packet.header.flags = 0;
 	loopback_packet.loopbackParams = 15;
 
+	reinit_completion(&host_ctx->loopback_done);
 	ret = npu_send_misc_cmd(npu_dev, IPC_QUEUE_APPS_EXEC, &loopback_packet);
 
 	if (ret) {

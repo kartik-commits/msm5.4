@@ -192,8 +192,9 @@ static struct clk_hw *ast2600_calc_pll(const char *name, u32 val)
 static struct clk_hw *ast2600_calc_apll(const char *name, u32 val)
 {
 	unsigned int mult, div;
+	u32 chip_id = readl(scu_g6_base + ASPEED_G6_SILICON_REV);
 
-	if (soc_rev >= 2) {
+	if (((chip_id & CHIP_REVISION_ID) >> 16) >= 2) {
 		if (val & BIT(24)) {
 			/* Pass through mode */
 			mult = div = 1;
@@ -579,7 +580,7 @@ static int aspeed_g6_clk_probe(struct platform_device *pdev)
 	regmap_write(map, 0x308, 0x12000); /* 3x3 = 9 */
 
 	/* P-Bus (BCLK) clock divider */
-	hw = clk_hw_register_divider_table(dev, "bclk", "epll", 0,
+	hw = clk_hw_register_divider_table(dev, "bclk", "hpll", 0,
 			scu_g6_base + ASPEED_G6_CLK_SELECTION1, 20, 3, 0,
 			ast2600_div_table,
 			&aspeed_g6_clk_lock);
@@ -665,7 +666,7 @@ static const u32 ast2600_a1_axi_ahb200_tbl[] = {
 static void __init aspeed_g6_cc(struct regmap *map)
 {
 	struct clk_hw *hw;
-	u32 val, div, divbits, axi_div, ahb_div;
+	u32 val, div, divbits, chip_id, axi_div, ahb_div;
 
 	clk_hw_register_fixed_rate(NULL, "clkin", NULL, 0, 25000000);
 
@@ -696,7 +697,8 @@ static void __init aspeed_g6_cc(struct regmap *map)
 		axi_div = 2;
 
 	divbits = (val >> 11) & 0x3;
-	if (soc_rev >= 1) {
+	regmap_read(map, ASPEED_G6_SILICON_REV, &chip_id);
+	if (chip_id & BIT(16)) {
 		if (!divbits) {
 			ahb_div = ast2600_a1_axi_ahb200_tbl[(val >> 8) & 0x3];
 			if (val & BIT(16))

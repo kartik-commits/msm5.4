@@ -40,6 +40,7 @@
 #include <linux/dma-contiguous.h>
 #include <linux/cma.h>
 #include <linux/iommu.h>
+#include <linux/dma-iommu.h>
 #include <linux/sort.h>
 #include <linux/cred.h>
 #include <linux/msm_dma_iommu_mapping.h>
@@ -7200,4 +7201,4 @@ static void __exit fastrpc_device_exit(void)
 module_init(fastrpc_device_init);
 module_exit(fastrpc_device_exit);
 
-MODULE_LICENSE("GPL v2");
+MODULE_LICENSE("GPL v2");s
