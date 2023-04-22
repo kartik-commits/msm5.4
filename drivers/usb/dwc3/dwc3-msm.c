@@ -3,6 +3,9 @@
  * Copyright (c) 2012-2021, The Linux Foundation. All rights reserved.
  * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
+#ifdef CONFIG_FACTORY_BUILD
+#define DEBUG
+#endif
 
 #include <linux/module.h>
 #include <linux/kernel.h>
@@ -45,6 +48,7 @@
 #include <linux/usb/dwc3-msm.h>
 #include <linux/usb/role.h>
 #include <linux/usb/redriver.h>
+#include <linux/dma-iommu.h>
 #ifdef CONFIG_QGKI_MSM_BOOT_TIME_MARKER
 #include <soc/qcom/boot_stats.h>
 #endif
@@ -2865,18 +2869,21 @@ static void dwc3_msm_notify_event(struct dwc3 *dwc,
 		break;
 	case DWC3_CONTROLLER_NOTIFY_CLEAR_DB:
 		dev_dbg(mdwc->dev, "DWC3_CONTROLLER_NOTIFY_CLEAR_DB\n");
-
-		/*
-		 * Clear the susphy bit here to ensure it is not set during
-		 * the course of controller initialisation process.
-		 */
-		reg = dwc3_msm_read_reg(mdwc->base, DWC3_GUSB3PIPECTL(0));
-		reg &= ~(DWC3_GUSB3PIPECTL_SUSPHY);
-		dwc3_msm_write_reg(mdwc->base, DWC3_GUSB3PIPECTL(0), reg);
-		udelay(1000);
-
-		handle_gsi_clear_db(mdwc);
+		if (mdwc->gsi_reg) {
+			dwc3_msm_write_reg_field(mdwc->base,
+			GSI_GENERAL_CFG_REG(mdwc->gsi_reg),
+			BLOCK_GSI_WR_GO_MASK, true);
+			dwc3_msm_write_reg_field(mdwc->base,
+			GSI_GENERAL_CFG_REG(mdwc->gsi_reg),
+			GSI_EN_MASK, 0);
+		}
 		break;
+#ifndef CONFIG_FACTORY_BUILD
+	case DWC3_USB_RESTART_EVENT:
+		dev_dbg(mdwc->dev, "DWC3_USB_RESTART_EVENT\n");
+		schedule_work(&mdwc->restart_usb_work);
+		break;
+#endif
 	default:
 		dev_dbg(mdwc->dev, "unknown dwc3 event\n");
 		break;
@@ -3661,6 +3668,8 @@ static int dwc3_msm_suspend(struct dwc3_msm *mdwc, bool force_power_collapse,
 	/* make sure above writes are completed before turning off clocks */
 	wmb();
 
+	atomic_set(&dwc->in_lpm, 1);
+
 	/* Disable clocks */
 	clk_disable_unprepare(mdwc->bus_aggr_clk);
 	clk_disable_unprepare(mdwc->utmi_clk);
@@ -3693,7 +3702,6 @@ static int dwc3_msm_suspend(struct dwc3_msm *mdwc, bool force_power_collapse,
 
 	suspend_pm_wakeup_init(mdwc);
 
-	atomic_set(&dwc->in_lpm, 1);
 
 	suspend_wake_enable(mdwc, enable_wakeup);
 
@@ -6351,6 +6359,9 @@ static int dwc3_msm_gadget_vbus_draw(struct dwc3_msm *mdwc, unsigned int mA)
 		return 0;
 
 	if (mdwc->apsd_source == IIO && chg_type != POWER_SUPPLY_TYPE_USB)
+		return 0;
+
+	if (mA < 100)
 		return 0;
 
 	/* Set max current limit in uA */

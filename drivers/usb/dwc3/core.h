@@ -1000,6 +1000,11 @@ struct dwc3_request {
 #define DWC3_REQUEST_STATUS_COMPLETED	3
 #define DWC3_REQUEST_STATUS_UNKNOWN	-1
 
+/* Add the suitable Feedback status to interface*/
+#define DWC3_REQUEST_STATUS_DISCONNECTED	6
+#define DWC3_REQUEST_STATUS_DEQUEUED		5
+#define DWC3_REQUEST_STATUS_STALLED		4
+
 	u8			epnum;
 	struct dwc3_trb		*trb;
 	dma_addr_t		trb_dma;
@@ -1090,7 +1095,6 @@ struct dwc3_scratchpad_array {
  * @link_state: link state
  * @speed: device speed (super, high, full, low)
  * @hwparams: copy of hwparams registers
- * @root: debugfs root folder pointer
  * @regset: debugfs pointer to regdump file
  * @dbg_lsp_select: current debug lsp mux register selection
  * @test_mode: true when we're entering a USB test mode
@@ -1446,10 +1450,11 @@ struct dwc3 {
 	bool			is_remote_wakeup_enabled;
 	wait_queue_head_t	wait_linkstate;
 	struct work_struct	remote_wakeup_work;
-	bool			active_highbw_isoc;
-	bool			ignore_statusirq;
-	u32			num_gsi_eps;
-	bool			normal_eps_in_gsi_mode;
+	bool			dual_port;
+#ifndef CONFIG_FACTORY_BUILD
+	struct work_struct 	check_cmd_work;
+	int			gs_cmd_status;
+#endif
 };
 
 #define INCRX_BURST_MODE 0
@@ -1758,6 +1763,10 @@ enum dwc3_notify_event {
 	DWC3_GSI_EVT_BUF_CLEAR,
 	DWC3_GSI_EVT_BUF_FREE,
 	DWC3_CONTROLLER_NOTIFY_CLEAR_DB,
+#ifndef CONFIG_FACTORY_BUILD
+	/*USB RESTART EVENT*/
+	DWC3_USB_RESTART_EVENT,
+#endif
 };
 
 extern void dwc3_set_notifier(void (*notify)(struct dwc3 *dwc3,
