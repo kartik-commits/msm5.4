@@ -24,7 +24,7 @@
 #include <linux/suspend.h>
 
 #define SPI_NUM_CHIPSELECT	(4)
-#define SPI_XFER_TIMEOUT_MS	(250)
+#define SPI_XFER_TIMEOUT_MS	(1500)
 #define SPI_AUTO_SUSPEND_DELAY	(250)
 #define SPI_XFER_TIMEOUT_OFFSET	(250)
 #define SPI_SLAVE_SYNC_XFER_TIMEOUT_OFFSET (50)
@@ -2781,8 +2781,7 @@ static int spi_geni_suspend(struct device *dev)
 		struct spi_geni_master *geni_mas = spi_master_get_devdata(spi);
 
 		if (list_empty(&spi->queue) && !spi->cur_msg) {
-			GENI_SE_ERR(geni_mas->ipc, true, dev,
-					"%s: Force suspend", __func__);
+			GENI_SE_ERR(geni_mas->ipc, true, dev,"%s: Force suspend", __func__);
 			ret = spi_geni_runtime_suspend(dev);
 			if (ret) {
 				GENI_SE_ERR(geni_mas->ipc, true, dev,
