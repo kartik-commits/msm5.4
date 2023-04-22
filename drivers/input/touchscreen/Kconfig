@@ -12,6 +12,11 @@ menuconfig INPUT_TOUCHSCREEN
 
 if INPUT_TOUCHSCREEN
 
+config TOUCHSCREEN_QGKI_GOODIX
+	default n
+	bool "QGKI config"
+
+
 config TOUCHSCREEN_PROPERTIES
 	def_tristate INPUT
 	depends on INPUT
@@ -1528,16 +1533,14 @@ config TOUCHSCREEN_IQS5XX
 	  To compile this driver as a module, choose M here: the
 	  module will be called iqs5xx.
 
-source "drivers/input/touchscreen/st/Kconfig"
-
-source "drivers/input/touchscreen/focaltech_touch/Kconfig"
-
-source "drivers/input/touchscreen/synaptics_tcm/Kconfig"
+source "drivers/input/touchscreen/xiaomi/Kconfig"
+source "drivers/input/touchscreen/cyttsp5/Kconfig"
+source "drivers/input/touchscreen/zinitix_bt541/Kconfig"
 
 config TOUCHSCREEN_SYNAPTICS_DSX
 	bool "Synaptics DSX Touchscreen Driver"
 	depends on I2C
-	default y
+	default n
 	help
 	  Say Y here if you have a Synaptics Touchscreen.
 
@@ -1546,20 +1549,5 @@ config TOUCHSCREEN_SYNAPTICS_DSX
 	  To compile this driver as a module, choose M here: the
 	  module will be called synaptics_tcm.
 
-source "drivers/input/touchscreen/synaptics_dsx/Kconfig"
-
-source "drivers/input/touchscreen/nt36xxx/Kconfig"
-
-config TOUCHSCREEN_HIMAX_CHIPSET
-	bool "Himax touchpanel CHIPSET"
-	depends on I2C
-	help
-	  Say Y here if you have a Himax CHIPSET touchscreen.
-	  HIMAX controllers are multi touch controllers which can
-	  report 10 touches at a time.
-
-	  If unsure, say N.
-
-source "drivers/input/touchscreen/hxchipset/Kconfig"
-
+source "drivers/input/touchscreen/gt9916_m20/Kconfig"
 endif
