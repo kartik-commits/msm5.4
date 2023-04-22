@@ -19,13 +19,18 @@
 #include <linux/platform_device.h>
 #include <linux/mutex.h>
 #include <linux/thermal.h>
+#include <linux/slab.h>
+#include <linux/nvmem-consumer.h>
 #include <linux/ipc_logging.h>
 
 #include "../thermal_core.h"
 
 #define BCL_DRIVER_NAME       "bcl_pmic5"
 #define BCL_MONITOR_EN        0x46
+#define BCL_MONITOR_EN_TEMP   0xDA
 #define BCL_IRQ_STATUS        0x08
+#define BCL_IADC_BF_DGL_CTL   0x59
+#define BCL_IADC_BF_DGL_16MS  0x0E
 
 #define BCL_IBAT_HIGH             0x4B
 #define BCL_IBAT_TOO_HIGH         0x4C
@@ -127,10 +132,6 @@ static int bcl_read_register(struct bcl_device *bcl_perph, int16_t reg_offset,
 {
 	int ret = 0;
 
-	if (!bcl_perph) {
-		pr_err("BCL device not initialized\n");
-		return -EINVAL;
-	}
 	ret = regmap_read(bcl_perph->regmap,
 			       (bcl_perph->fg_bcl_addr + reg_offset),
 			       data);
@@ -681,9 +682,23 @@ static void bcl_probe_lvls(struct platform_device *pdev,
 	bcl_lvl_init(pdev, BCL_LVL2, BCL_IRQ_L2, bcl_perph);
 }
 
+static void bcl_iadc_bf_degl_set(struct bcl_device *bcl_perph, int time)
+{
+	int ret;
+	int data = 0;
+	ret = bcl_read_register(bcl_perph, BCL_IADC_BF_DGL_CTL, &data);
+	if (ret)
+		return;
+	data = (data & 0xF0) | time;
+	ret = bcl_write_register(bcl_perph, BCL_IADC_BF_DGL_CTL, data);
+	if (ret)
+		return;
+}
+
 static void bcl_configure_bcl_peripheral(struct bcl_device *bcl_perph)
 {
 	bcl_write_register(bcl_perph, BCL_MONITOR_EN, BIT(7));
+	bcl_iadc_bf_degl_set(bcl_perph, BCL_IADC_BF_DGL_16MS);
 }
 
 static int bcl_remove(struct platform_device *pdev)
@@ -746,59 +761,35 @@ static int bcl_probe(struct platform_device *pdev)
 	return 0;
 }
 
-static int bcl_freeze(struct device *dev)
+static void bcl_shutdown(struct platform_device *pdev)
 {
-	struct bcl_device *bcl_perph = dev_get_drvdata(dev);
-	int i;
-	struct bcl_peripheral_data *bcl_data;
+	int ret;
+	int data = 0;
+        struct bcl_device *bcl_perph =
+                (struct bcl_device *)dev_get_drvdata(&pdev->dev);
 
-	for (i = 0; i < ARRAY_SIZE(bcl_int_names); i++) {
-		bcl_data = &bcl_perph->param[i];
+	ret = bcl_read_register(bcl_perph, BCL_MONITOR_EN, &data);
+	printk(KERN_ERR "befor set data is %d", data);
+	if (ret)
+		return;
+	data = (data & 0x7F);
+	ret = bcl_write_register(bcl_perph, BCL_MONITOR_EN, data);
 
-		mutex_lock(&bcl_data->state_trans_lock);
-		if (bcl_data->irq_num > 0 && bcl_data->irq_enabled) {
-			disable_irq(bcl_data->irq_num);
-			bcl_data->irq_enabled = false;
-		}
-		devm_free_irq(dev, bcl_data->irq_num, bcl_data);
-		bcl_data->irq_freed = true;
-		mutex_unlock(&bcl_data->state_trans_lock);
-	}
-	return 0;
-}
+	printk(KERN_ERR "after set data is %d", data);
+	if (ret)
+		return;
 
-static int bcl_restore(struct device *dev)
-{
-	struct bcl_device *bcl_perph = dev_get_drvdata(dev);
-	struct bcl_peripheral_data *bcl_data;
-	int ret = 0, i;
+	ret = bcl_read_register(bcl_perph, BCL_MONITOR_EN_TEMP, &data);
+	printk(KERN_ERR "befor set temp_data is %d", data);
+	if (ret)
+		return;
+	data = (data & 0x00);
+	data = (data | 0x05);
+	ret = bcl_write_register(bcl_perph, BCL_MONITOR_EN_TEMP, data);
 
-	for (i = 0; i < ARRAY_SIZE(bcl_int_names); i++) {
-		bcl_data = &bcl_perph->param[i];
-		mutex_lock(&bcl_data->state_trans_lock);
-		if (bcl_data->irq_num > 0 && !bcl_data->irq_enabled) {
-			ret = devm_request_threaded_irq(dev,
-					bcl_data->irq_num, NULL, bcl_handle_irq,
-					IRQF_TRIGGER_RISING | IRQF_ONESHOT,
-					bcl_int_names[i], bcl_data);
-			if (ret) {
-				dev_err(dev,
-					"Error requesting trip irq. err:%d\n",
-					ret);
-				mutex_unlock(&bcl_data->state_trans_lock);
-				return -EINVAL;
-			}
-			disable_irq_nosync(bcl_data->irq_num);
-			bcl_data->irq_freed = false;
-		}
-		mutex_unlock(&bcl_data->state_trans_lock);
-
-		if (bcl_data->tz_dev)
-			thermal_zone_device_update(bcl_data->tz_dev, THERMAL_DEVICE_UP);
-	}
-	bcl_configure_bcl_peripheral(bcl_perph);
-
-	return 0;
+	printk(KERN_ERR "after set temp_data is %d", data);
+	if (ret)
+		return;
 }
 
 
@@ -817,6 +808,7 @@ static const struct of_device_id bcl_match[] = {
 static struct platform_driver bcl_driver = {
 	.probe  = bcl_probe,
 	.remove = bcl_remove,
+	.shutdown = bcl_shutdown,
 	.driver = {
 		.name           = BCL_DRIVER_NAME,
 		.pm = &bcl_pm_ops,
