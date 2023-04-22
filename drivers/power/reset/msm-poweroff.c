@@ -61,11 +61,11 @@ static struct nvmem_cell *nvmem_cell;
 static int download_mode = 1;
 static struct kobject dload_kobj;
 
-static int in_panic;
-static int dload_type = SCM_DLOAD_FULLDUMP;
-static void __iomem *dload_mode_addr;
+static int in_panic = 0;
+static int dload_type = SCM_DLOAD_BOTHDUMPS;
+static void *dload_mode_addr;
 static bool dload_mode_enabled;
-static void __iomem *emergency_dload_mode_addr;
+static void *emergency_dload_mode_addr;
 
 static bool force_warm_reboot;
 
@@ -477,7 +477,10 @@ static void msm_restart_prepare(const char *cmd)
 	else
 		qpnp_pon_system_pwr_off(PON_POWER_OFF_HARD_RESET);
 
-	if (cmd != NULL) {
+	if (in_panic) {
+		reason = PON_RESTART_REASON_PANIC;
+	}
+	else if (cmd != NULL) {
 		if (!strncmp(cmd, "bootloader", 10)) {
 			reason = PON_RESTART_REASON_BOOTLOADER;
 			__raw_writel(0x77665500, restart_reason);
@@ -509,6 +512,7 @@ static void msm_restart_prepare(const char *cmd)
 		} else if (!strnstr(cmd, "silent", 6)) {
 			reason = silent_restart(cmd);
 		} else {
+			reason = PON_RESTART_REASON_NORMAL;
 			__raw_writel(0x77665501, restart_reason);
 		}
 
@@ -518,6 +522,11 @@ static void msm_restart_prepare(const char *cmd)
 			qpnp_pon_set_restart_reason(
 				(enum pon_restart_reason)reason);
 	}
+	if (reason && nvmem_cell)
+		nvmem_cell_write(nvmem_cell, &reason, sizeof(reason));
+	else
+		qpnp_pon_set_restart_reason(
+			(enum pon_restart_reason)reason);
 
 	/*outer_flush_all is not supported by 64bit kernel*/
 #ifndef CONFIG_ARM64
