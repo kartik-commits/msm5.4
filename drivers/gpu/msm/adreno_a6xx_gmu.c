@@ -2911,7 +2911,9 @@ static int a6xx_gmu_power_off(struct adreno_device *adreno_dev)
 	clk_bulk_disable_unprepare(gmu->num_clks, gmu->clks);
 	clear_bit(KGSL_PWRFLAGS_CLK_ON, &pwr->power_flags);
 
-	a6xx_regulator_disable_wait(gmu, device, 5000);
+	/* Pool to make sure that the CX is off */
+	a6xx_cx_regulator_disable_wait(gmu->cx_gdsc, device,
+		IS_ENABLED(CONFIG_ARM_SMMU_POWER_ALWAYS_ON) ? 0 : 5000);
 
 	a6xx_rdpm_cx_freq_update(gmu, 0);
 

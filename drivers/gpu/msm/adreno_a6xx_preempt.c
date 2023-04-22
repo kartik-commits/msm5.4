@@ -735,7 +735,7 @@ int a6xx_preemption_init(struct adreno_device *adreno_dev)
 	ret = PTR_ERR_OR_ZERO(iommu->smmu_info);
 	if (ret)
 		return ret;
-
+	
 	/*
 	 * First 28 dwords of the device scratch buffer are used to store shadow rb data.
 	 * Reserve 11 dwords in the device scratch buffer from SCRATCH_POSTAMBLE_OFFSET for
