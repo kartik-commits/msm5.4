@@ -15,6 +15,8 @@ struct sk_buff;
 
 #define MAX_NON_WAKE_SVC_LEN    5
 
+#define MAX_NON_WAKE_SVC_LEN    5
+
 /**
  * struct qrtr_endpoint - endpoint handle
  * @xmit: Callback for outgoing packets
