@@ -1653,7 +1653,12 @@ static int hgsl_wait_timestamp(struct qcom_hgsl *hgsl,
 	struct hgsl_context *ctxt = hgsl_get_context(hgsl, param->context_id);
 	unsigned int timestamp;
 	int ret;
+if (param.context_id >= HGSL_CONTEXT_NUM)
+		return -EINVAL;
 
+	read_lock(&hgsl->ctxt_lock);
+	ctxt = hgsl->contexts[param.context_id];
+	read_unlock(&hgsl->ctxt_lock);
 	if (ctxt == NULL) {
 		LOGE("Invalid context id %d\n", param->context_id);
 		ret = -EINVAL;
