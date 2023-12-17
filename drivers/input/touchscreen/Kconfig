@@ -1536,6 +1536,7 @@ config TOUCHSCREEN_IQS5XX
 source "drivers/input/touchscreen/xiaomi/Kconfig"
 source "drivers/input/touchscreen/cyttsp5/Kconfig"
 source "drivers/input/touchscreen/zinitix_bt541/Kconfig"
+source "drivers/input/touchscreen/focaltech_touch/Kconfig"
 
 config TOUCHSCREEN_SYNAPTICS_DSX
 	bool "Synaptics DSX Touchscreen Driver"
